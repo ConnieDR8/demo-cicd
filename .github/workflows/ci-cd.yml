@@ -150,6 +150,13 @@ jobs:
       - name: Nombre de la imagen
         run: echo "IMAGEN=ghcr.io/$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')/demo-cicd-${{ matrix.servicio }}" >> "$GITHUB_ENV"
 
+      - name: Validar reemplazo de gosu en PostgreSQL
+        if: matrix.servicio == 'db'
+        run: |
+          docker run --rm --entrypoint sh "$IMAGEN:sha-$GITHUB_SHA" -ec '
+            cmp -s /sbin/su-exec /usr/local/bin/gosu
+            gosu nobody true
+          '
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_USERNAME: ${{ github.actor }}
@@ -157,6 +164,8 @@ jobs:
         with:
           image-ref: ${{ env.IMAGEN }}:sha-${{ github.sha }}
           severity: CRITICAL,HIGH
+          # Excepción específica: gosu heredado, reemplazado y validado arriba.
+          skip-files: ${{ matrix.servicio == 'db' && '/usr/local/bin/gosu' || '' }}
           ignore-unfixed: true
           exit-code: "1"
           format: table
