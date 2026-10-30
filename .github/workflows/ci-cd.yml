@@ -35,3 +35,21 @@ jobs:
           recursive: true
           config: .hadolint.yaml
           failure-threshold: warning
+
+  sast:
+    name: 2. SAST (Semgrep) y secretos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Semgrep, análisis estático del código
+        run: >
+          docker run --rm -v "$PWD:/src:ro" semgrep/semgrep:1.180.0
+          semgrep scan --config p/ci --config p/dockerfile --error --metrics=off /src
+
+      - name: Gitleaks, secretos en el historial de Git
+        run: >
+          docker run --rm -v "$PWD:/repo:ro" --entrypoint sh ghcr.io/gitleaks/gitleaks:v8.30.1
+          -c "git config --global --add safe.directory /repo && gitleaks git /repo --redact -v --exit-code 1"
