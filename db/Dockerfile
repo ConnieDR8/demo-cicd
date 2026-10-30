@@ -8,7 +8,11 @@ FROM postgres:16-alpine
 # Sustituir gosu (Go vulnerable) por su-exec de Alpine.
 # Se mantiene la interfaz que utiliza el entrypoint oficial de PostgreSQL.
 RUN apk add --no-cache su-exec=0.3-r0 \
-    && ln -sf /sbin/su-exec /usr/local/bin/gosu \
-    && gosu nobody true
+    && rm -f /usr/local/bin/gosu /usr/local/bin/su-exec \
+    && install -m 0755 /sbin/su-exec /usr/local/bin/gosu \
+    && ln -s gosu /usr/local/bin/su-exec \
+    && cmp -s /sbin/su-exec /usr/local/bin/gosu \
+    && gosu nobody true \
+    && su-exec nobody true
 
 COPY init/ /docker-entrypoint-initdb.d/
