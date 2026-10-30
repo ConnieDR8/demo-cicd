@@ -141,6 +141,7 @@ jobs:
       contents: read
       packages: read
     strategy:
+      fail-fast: false
       matrix:
         servicio: [web, api, db]
     steps:
