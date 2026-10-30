@@ -31,9 +31,32 @@ echo "OK  GET /api/health  ok"
 
 # 4. Se puede crear un mensaje
 TEXTO="smoke $(date +%s)"
-CODIGO=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/mensajes" \
-  -H 'Content-Type: application/json' -d "{\"nombre\":\"Smoke\",\"mensaje\":\"$TEXTO\"}")
-[ "$CODIGO" = "201" ] || { echo "FALLO: POST /api/mensajes devolvió $CODIGO"; exit 1; }
+CODIGO=""
+for i in $(seq 1 10); do
+  CODIGO=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/mensajes" \
+    -H 'Content-Type: application/json' \
+    -d "{\"nombre\":\"Smoke\",\"mensaje\":\"$TEXTO\"}") || CODIGO="000"
+
+  if [ "$CODIGO" = "201" ]; then
+    break
+  fi
+
+  case "$CODIGO" in
+    000|502|503|504)
+      echo "POST temporalmente no disponible ($CODIGO). Reintento $i/10"
+      sleep 2
+      ;;
+    *)
+      echo "FALLO: POST /api/mensajes devolvió $CODIGO"
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$CODIGO" != "201" ]; then
+  echo "FALLO: POST /api/mensajes devolvió $CODIGO tras los reintentos"
+  exit 1
+fi
 echo "OK  POST /api/mensajes 201"
 
 # 5. Y aparece en la lista
