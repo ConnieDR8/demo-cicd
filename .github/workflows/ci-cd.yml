@@ -160,3 +160,61 @@ jobs:
           exit-code: "1"
           format: table
           trivyignores: .trivyignore
+
+  deploy-dev:
+    name: 7. Deploy DEV (efímero) y smoke
+    needs: security
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Nombre de las imágenes
+        run: echo "PREFIJO=ghcr.io/$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')/demo-cicd" >> "$GITHUB_ENV"
+
+      - name: Crear el clúster (kind)
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        with:
+          cluster_name: dev
+
+      - name: Namespace y secretos
+        run: |
+          kubectl create namespace demo-dev
+          kubectl -n demo-dev create secret docker-registry ghcr \
+            --docker-server=ghcr.io --docker-username="${{ github.actor }}" --docker-password="${{ secrets.GITHUB_TOKEN }}"
+          kubectl -n demo-dev create secret generic db-credenciales --from-literal=DB_PASSWORD="$(openssl rand -hex 16)"
+
+      - name: Desplegar
+        run: scripts/desplegar.sh k8s/overlays/dev "$PREFIJO" "sha-${{ github.sha }}"
+
+      - name: Esperar el rollout
+        run: |
+          kubectl -n demo-dev rollout status deploy/db --timeout=180s
+          kubectl -n demo-dev rollout status deploy/api --timeout=180s
+          kubectl -n demo-dev rollout status deploy/web --timeout=180s
+
+      - name: Smoke test e integración contra DEV
+        run: |
+          kubectl -n demo-dev port-forward svc/web 8080:80 &
+          sleep 3
+          bash scripts/smoke.sh http://localhost:8080
+          APP_URL=http://localhost:8080 npm run test:integration
+
+      - name: Diagnóstico ante fallos
+        if: failure()
+        run: |
+          kubectl -n demo-dev get all
+          kubectl -n demo-dev describe pods
+          kubectl -n demo-dev logs -l app=api --tail=50 || true
+          kubectl -n demo-dev logs -l app=db --tail=50 || true
