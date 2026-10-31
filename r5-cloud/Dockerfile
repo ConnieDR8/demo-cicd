@@ -17,6 +17,6 @@ USER 1000
 EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:10000/api/health || exit 1
+  CMD ["wget", "-qO-", "http://127.0.0.1:10000/api/health"]
 
 CMD ["node", "cloud-server.js"]
