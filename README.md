@@ -26,10 +26,12 @@ El workflow se ejecuta para Pull Requests hacia `main`, para pushes a `main` y m
 flowchart TD
     Inicio["PR o push a main"] --> Lint["1. Lint"]
     Inicio --> SAST["2. SAST y secretos"]
-    Lint --> Unit["3. Pruebas unitarias y del sitio"]
-    Unit --> Integration["4. Integración con Compose"]
-    Integration --> Package["5. Package: web, api, db"]
+    Inicio --> Unit["3. Pruebas unitarias y del sitio"]
+    Inicio --> Integration["4. Integración con Compose"]
+    Lint --> Package["5. Package: web, api, db"]
     SAST --> Package
+    Unit --> Package
+    Integration --> Package
     Package --> Security["6. Security: Trivy"]
     Security --> Dev["7. DEV: kind y smoke tests"]
     Dev --> Aprobacion{"Aprobación de STAGING"}
@@ -42,14 +44,14 @@ flowchart TD
 | --- | --- | --- | --- |
 | `lint` | ESLint, HTML-Validate, Hadolint | — | Calidad del JS, HTML y Dockerfiles |
 | `sast` | Semgrep, TruffleHog | — | Patrones inseguros y secretos |
-| `test-unit` | Vitest, jsdom, Supertest | `lint` | Lógica de la API y del frontend |
-| `test-integration` | Docker Compose, Vitest | `test-unit` | Funcionamiento conjunto de web, API y base de datos |
-| `package` (matriz de 3) | Buildx, QEMU, GHCR | `test-integration`, `sast` | Publicación de imágenes `web`, `api` y `db` |
+| `test-unit` | Vitest, jsdom, Supertest | — | Lógica de la API y del frontend |
+| `test-integration` | Docker Compose, Vitest | — | Funcionamiento conjunto de web, API y base de datos |
+| `package` (matriz de 3) | Buildx, QEMU, GHCR | `lint`, `sast`, `test-unit`, `test-integration` | Publicación de imágenes `web`, `api` y `db` |
 | `security` (matriz de 3) | Trivy | `package` | Vulnerabilidades `CRITICAL` y `HIGH` corregibles |
 | `deploy-dev` | kind, Kubernetes, Kustomize | `security` | Rollout, smoke e integración en entorno efímero |
 | `deploy-staging` | Rancher Desktop, runner Windows | `deploy-dev` | Despliegue persistente con aprobación manual |
 
-**Paralelismo:** `lint` y `sast` empiezan por separado. La publicación espera a que terminen las pruebas de integración y SAST. Las matrices de empaquetado y seguridad procesan los tres servicios.
+**Paralelismo B6:** `lint`, `sast`, `test-unit` y `test-integration` empiezan en paralelo. `package` espera que las cuatro etapas aprueben; luego se ejecutan las matrices de empaquetado y seguridad. Las pruebas siguen siendo obligatorias.
 
 ### Seguridad y control de cambios
 
@@ -131,3 +133,42 @@ Esto demuestra la importancia de detectar defectos antes de las etapas
 más costosas de construcción, escaneo y despliegue.
 
 [Ver documentación detallada de B3](docs/b3-evidencias.md).
+
+## B6 - Optimización del pipeline
+
+**Objetivo:** reducir al menos un 25 % el tiempo de CI sin omitir análisis ni pruebas.
+
+### Medición antes del cambio
+
+Se mide desde la primera línea del primer job hasta la última línea del
+último job de `security` en el log de GitHub Actions. Se excluyen las
+esperas en cola, la aprobación humana y los despliegues DEV/STAGING.
+
+| Ejecución de referencia | Tiempo CI hasta Security |
+| --- | ---: |
+| [#49](https://github.com/ConnieDR8/demo-cicd/actions/runs/41153867655) | 113,4 segundos |
+| [#52](https://github.com/ConnieDR8/demo-cicd/actions/runs/41155262524) | 118,4 segundos |
+| **Promedio anterior** | **115,9 segundos** |
+| **Meta mínima (-25 %)** | **86,9 segundos o menos** |
+
+### Optimización realizada
+
+Antes: `lint` → `test-unit` → `test-integration`; `sast` en paralelo.
+
+Después: `lint`, `sast`, `test-unit` y `test-integration` comienzan sin
+esperar entre sí. `package` depende explícitamente de las cuatro etapas,
+por lo que ninguna imagen se publica si alguna verificación falla.
+
+Se conservan los mismos tests, Hadolint, Semgrep, TruffleHog, Trivy,
+Buildx, el paso DEV y la aprobación de STAGING. Los jobs de pruebas
+pueden terminar después de otra verificación fallida, pero no se publica
+ni despliega código hasta que todos los controles obligatorios aprueben.
+
+### Medición posterior
+
+**Pendiente:** incorporar aquí el enlace al run de la PR B6 y su tiempo real
+al finalizar `security`. La reducción se calculará como:
+
+`Mejora (%) = (115,9 - tiempo_nuevo_en_segundos) / 115,9 * 100`
+
+No se declara el objetivo cumplido hasta medir un run exitoso y comparar.
