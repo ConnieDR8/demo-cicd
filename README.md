@@ -307,3 +307,23 @@ El dashboard se encuentra en Grafana, carpeta LAB04.
 
 R3 estara validado cuando se compruebe que Prometheus
 recopila las metricas reales del STAGING y Grafana las muestra.
+
+## R4 - GitOps con Argo CD
+
+Se incorpora una aplicacion declarativa gestionada por Argo CD.
+
+- Repositorio: ConnieDR8/demo-cicd.
+- Rama observada: main.
+- Manifiestos: k8s/gitops/app.
+- Application: k8s/gitops/application.yaml.
+- Namespace independiente: demo-gitops.
+- Sincronizacion automatica y autorreparacion habilitadas.
+
+Las Pull Requests no modifican el ambiente GitOps porque Argo CD
+observa exclusivamente main. No se altera STAGING ni su aprobacion.
+
+### Evidencias
+
+- Aplicacion Synced y Healthy: pendiente.
+- Despliegue desde main: pendiente.
+- Demostracion de selfHeal: pendiente.
