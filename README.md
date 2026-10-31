@@ -217,3 +217,46 @@ cuando el workflow se ejecute desde `main`.
 
 La primera ejecución permitirá identificar los hallazgos reales
 y registrar las medidas correctivas correspondientes.
+
+## R2 - GitLab CI
+
+Se incorpora un segundo pipeline CI/CD mediante
+`.gitlab-ci.yml`, manteniendo GitHub Actions como
+plataforma principal.
+
+### Equivalencias entre plataformas
+
+| GitHub Actions | GitLab CI |
+| --- | --- |
+| `lint` | `lint` |
+| `test-unit` | `test_unit_and_site` |
+| `test-integration` | `test_integration` |
+| `sast` | SAST de GitLab |
+| `package` | `build_images` |
+| `deploy-staging` | `deploy_validation` |
+
+### Funcionamiento
+
+El pipeline utiliza tres etapas:
+
+1. `test`: calidad, pruebas automatizadas, integracion y SAST.
+2. `build`: construccion y publicacion de las imagenes
+   web, api y db en GitLab Container Registry.
+3. `deploy`: validacion manual mediante un entorno temporal
+   y smoke tests.
+
+Las imagenes se identifican mediante `$CI_COMMIT_SHORT_SHA`
+y se autentican usando variables oficiales de GitLab.
+
+El pipeline replica funciones principales de GitHub Actions,
+pero no todos sus controles avanzados, como el escaneo Trivy
+y la deteccion independiente de secretos con TruffleHog.
+
+### Evidencias
+
+- Pipeline exitoso de GitLab: pendiente.
+- Imagenes publicadas en GitLab Container Registry: pendiente.
+- Despliegue manual validado: pendiente.
+
+La evidencia se completara cuando los jobs se ejecuten
+satisfactoriamente en GitLab.com.
