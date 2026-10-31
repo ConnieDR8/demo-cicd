@@ -9,6 +9,7 @@ const seccion = document.getElementById("libro-de-visitas");
 const lista = document.getElementById("lista-mensajes");
 const form = document.getElementById("form-mensaje");
 const estado = document.getElementById("form-estado");
+const contador = document.getElementById("total-mensajes");
 
 function pintar(mensajes) {
   lista.replaceChildren(
@@ -33,6 +34,16 @@ async function cargar() {
   const esJson = (r.headers.get("content-type") || "").includes("application/json");
   if (!r.ok || !esJson) throw new Error(`la API no está disponible (HTTP ${r.status})`);
   pintar(await r.json());
+  const respuesta = await fetch(`${API}/estadisticas`, {
+  headers: { Accept: "application/json" },
+  });
+
+  if (!respuesta.ok) {
+  throw new Error("No se pudieron cargar las estadísticas");
+}
+
+const { total } = await respuesta.json();
+contador.textContent = String(total);
 }
 
 form.addEventListener("submit", async (e) => {
