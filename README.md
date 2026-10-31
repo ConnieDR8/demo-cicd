@@ -110,3 +110,29 @@ El Secret `db-credenciales` se crea **en el clúster**, una sola vez. No está e
 En el [issue de entrega del LAB-04](https://github.com/urp-topicos-2026-2/.github-private/issues). Cuando pregunten, pasen el enlace al run que falló, digan en qué job y en qué paso, qué esperaban y qué pasó.
 
 Ing. Ronald Requena Crispín
+
+
+## B3 - Cuatro fallos intencionales
+
+Se introdujeron y corrigieron errores en cuatro etapas distintas del pipeline.
+
+| Etapa | Qué se rompió | Run rojo | Run verde | Minuto de detección |
+|---|---|---|---|---|
+| Lint | Se eliminó `type="text"` de un input HTML | [#42](https://github.com/ConnieDR8/demo-cicd/actions/runs/41151300841) | [#43](https://github.com/ConnieDR8/demo-cicd/actions/runs/41151719558) | **Minuto 1 (14 s)** |
+| Pruebas unitarias | Se cambió el alias SQL `total` por `cantidad` | [#45](https://github.com/ConnieDR8/demo-cicd/actions/runs/41152685867) | [#46](https://github.com/ConnieDR8/demo-cicd/actions/runs/41152816321) | **Minuto 1 (26 s)** |
+| Integración | Se modificó el proxy de `api:3000` a `api:3001` | [#48](https://github.com/ConnieDR8/demo-cicd/actions/runs/41153692733) | [#49](https://github.com/ConnieDR8/demo-cicd/actions/runs/41153867655) | **Minuto 2 (67 s)** |
+| SAST | Se cambió una acción fijada por SHA a `actions/checkout@v4` | [#51](https://github.com/ConnieDR8/demo-cicd/actions/runs/41155176229) | [#52](https://github.com/ConnieDR8/demo-cicd/actions/runs/41155262524) | **Minuto 1 (19 s)** |
+
+Los tiempos se calcularon a partir de los logs de GitHub Actions, desde el inicio
+del primer job hasta la detección del fallo, excluyendo la espera en cola.
+
+### Conclusión
+
+Tres errores se detectaron durante el primer minuto de ejecución.
+El error de integración se detectó durante el segundo minuto porque fue
+necesario levantar los contenedores antes de ejecutar las pruebas.
+
+Esto demuestra la importancia de detectar defectos antes de las etapas
+más costosas de construcción, escaneo y despliegue.
+
+[Ver documentación detallada de B3](docs/b3-evidencias.md).
