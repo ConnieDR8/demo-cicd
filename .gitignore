@@ -3,3 +3,14 @@ node_modules/
 coverage/
 .DS_Store
 Thumbs.db
+
+# Terraform R6
+/infra/r6/.terraform/
+/infra/r6/*.tfstate
+/infra/r6/*.tfstate.*
+/infra/r6/*.tfplan
+/infra/r6/*.tfvars
+/infra/r6/*.tfvars.json
+/infra/r6/.terraform.tfstate.lock.info
+/infra/r6/crash.log
+/infra/r6/crash.*.log

@@ -1,0 +1,47 @@
+name: R6 Terraform IaC
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/r6/**"
+      - ".github/workflows/r6-terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/r6/**"
+      - ".github/workflows/r6-terraform.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-validate:
+    name: R6 - Validar infraestructura Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validar formato
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/r6:/work" \
+            -w /work \
+            hashicorp/terraform:1.16.6 fmt -check
+
+      - name: Inicializar Terraform
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/r6:/work" \
+            -w /work \
+            hashicorp/terraform:1.16.6 \
+            init -backend=false -lockfile=readonly -input=false
+
+      - name: Validar configuracion
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/r6:/work" \
+            -w /work \
+            hashicorp/terraform:1.16.6 validate -no-color
