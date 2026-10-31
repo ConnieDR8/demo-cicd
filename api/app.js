@@ -35,6 +35,18 @@ export function crearApp({ pool, registro = new client.Registry() }) {
     }
   });
 
+  app.get("/api/estadisticas", async (_req, res, next) => {
+    try {
+      const { rows } = await pool.query(
+        "SELECT COUNT(*)::int AS total FROM mensajes"
+      );
+
+      res.json({ total: rows[0].total });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/mensajes", async (_req, res, next) => {
     try {
       const { rows } = await pool.query(
