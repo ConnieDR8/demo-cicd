@@ -1,112 +1,133 @@
-# demo-cicd: la aplicación base del LAB-04
+# LAB-04 | Pipeline CI/CD end-to-end
 
-Curso IF-1116, Tópicos de Tecnologías de Información, semestre 2026-II. Semana 06.
+[![CI/CD](https://github.com/ConnieDR8/demo-cicd/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/ConnieDR8/demo-cicd/actions/workflows/ci-cd.yml)
 
-Aquí les dejo una aplicación completa y funcionando: el libro de visitas del LAB-02, ya contenerizado, con pruebas, con manifiestos de Kubernetes y con métricas. Lo que **no** tiene es el pipeline. Eso lo construyen ustedes siguiendo la [guía práctica de la Semana 06](https://github.com/urp-topicos-2026-2/.github-private/blob/main/semanas/S06/guia-pipeline.md), y lo extienden en el [LAB-04](https://github.com/urp-topicos-2026-2/.github-private/blob/main/semanas/S06/laboratorio/lab-04.md).
+**Curso:** IF-1116 · Tópicos de Tecnologías de Información · 2026-II
+**Repositorio:** [ConnieDR8/demo-cicd](https://github.com/ConnieDR8/demo-cicd)
+**Workflow:** [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
 
-Todo lo que está aquí lo probé y funciona: lint, pruebas unitarias, pruebas de integración, Compose y los manifiestos. Si algo se pone en rojo en su pipeline, el problema está en el pipeline, y eso es justamente lo que tienen que resolver.
+## Objetivo y arquitectura
 
-## Cómo usarlo
+Automatizar la validación, el análisis de seguridad, las pruebas, la publicación de imágenes y el despliegue de un **libro de visitas** con tres servicios:
 
-No hagan fork. Este repositorio es una **plantilla**: arriba a la derecha, **Use this template → Create a new repository**. Pónganle el nombre `demo-cicd`, en **su** cuenta y **público**. Público porque GitHub Actions y GitHub Packages son gratis sin límite para repositorios públicos, y porque el pipeline es la evidencia que yo reviso.
+| Servicio | Tecnología | Responsabilidad |
+| --- | --- | --- |
+| `web` | Nginx sin privilegios | Publica la página y redirige `/api/` al backend |
+| `api` | Node.js 22, Express | Gestiona mensajes, estadísticas y métricas |
+| `db` | PostgreSQL | Conserva los mensajes en almacenamiento persistente |
 
-## Qué hay aquí
+La API publica `GET /api/health`, `GET /api/mensajes`, `POST /api/mensajes`, `GET /api/estadisticas` y `/metrics`. La página muestra la cantidad de mensajes almacenados, obtenida desde PostgreSQL.
 
-```
-web/                    nginx: sirve la página y reenvía /api/ al backend
-    Dockerfile          imagen sin root (nginx-unprivileged), escucha en 8080
-    nginx.conf
-    public/             index.html, estilos.css, libro-de-visitas.js
-api/                    la API en Node.js (Express), con métricas para Prometheus en /metrics
-    Dockerfile
-    app.js              la aplicación, separada del arranque para poder probarla sin base de datos
-    server.js           el arranque: pool de Postgres, puerto, señales
-db/                     Postgres con las tablas ya incluidas
-tests/
-    unit/               pruebas unitarias de la API, con un pool falso (Vitest + Supertest)
-    site/               pruebas del sitio estático (Vitest + jsdom)
-    integration/        pruebas contra la aplicación completa, entrando por web (fetch)
-scripts/
-    smoke.sh            cinco comprobaciones rápidas contra un ambiente desplegado
-    desplegar.sh        kubectl kustomize + reemplazo de imágenes + kubectl apply
-k8s/
-    base/               Deployments, Services, ConfigMap y PVC
-    overlays/dev/       namespace demo-dev
-    overlays/staging/   namespace demo-staging, web por NodePort 30080, dos réplicas de api
-observabilidad/         Prometheus y Grafana con un dashboard RED ya armado
-compose.yaml            la aplicación en su máquina, con perfil opcional de observabilidad
-.devcontainer/          para que todo arranque solo en GitHub Codespaces
+## B5 - Arquitectura del pipeline
+
+El workflow se ejecuta para Pull Requests hacia `main`, para pushes a `main` y manualmente (`workflow_dispatch`). En Pull Requests termina en las verificaciones; **DEV y STAGING solo se despliegan con un push a `main`**.
+
+```mermaid
+flowchart TD
+    Inicio["PR o push a main"] --> Lint["1. Lint"]
+    Inicio --> SAST["2. SAST y secretos"]
+    Lint --> Unit["3. Pruebas unitarias y del sitio"]
+    Unit --> Integration["4. Integración con Compose"]
+    Integration --> Package["5. Package: web, api, db"]
+    SAST --> Package
+    Package --> Security["6. Security: Trivy"]
+    Security --> Dev["7. DEV: kind y smoke tests"]
+    Dev --> Aprobacion{"Aprobación de STAGING"}
+    Aprobacion --> Staging["8. STAGING: runner propio"]
 ```
 
-## Correrlo en su máquina
+### Etapas, herramientas y dependencias
 
-```bash
-cp .env.example .env          # y cambien la contraseña
+| Etapa / job | Herramientas | Depende de | Comprobación principal |
+| --- | --- | --- | --- |
+| `lint` | ESLint, HTML-Validate, Hadolint | — | Calidad del JS, HTML y Dockerfiles |
+| `sast` | Semgrep, TruffleHog | — | Patrones inseguros y secretos |
+| `test-unit` | Vitest, jsdom, Supertest | `lint` | Lógica de la API y del frontend |
+| `test-integration` | Docker Compose, Vitest | `test-unit` | Funcionamiento conjunto de web, API y base de datos |
+| `package` (matriz de 3) | Buildx, QEMU, GHCR | `test-integration`, `sast` | Publicación de imágenes `web`, `api` y `db` |
+| `security` (matriz de 3) | Trivy | `package` | Vulnerabilidades `CRITICAL` y `HIGH` corregibles |
+| `deploy-dev` | kind, Kubernetes, Kustomize | `security` | Rollout, smoke e integración en entorno efímero |
+| `deploy-staging` | Rancher Desktop, runner Windows | `deploy-dev` | Despliegue persistente con aprobación manual |
+
+**Paralelismo:** `lint` y `sast` empiezan por separado. La publicación espera a que terminen las pruebas de integración y SAST. Las matrices de empaquetado y seguridad procesan los tres servicios.
+
+### Seguridad y control de cambios
+
+- La rama `main` está protegida con PR y checks obligatorios.
+- Las GitHub Actions usan referencias fijadas por SHA.
+- Trivy usa `severity: CRITICAL,HIGH`, `ignore-unfixed: true` y `exit-code: "1"`.
+- Para PostgreSQL existe una excepción específica documentada de `gosu`, acompañada por una comprobación del reemplazo por `su-exec`; no se desactiva el análisis general.
+- [Dependabot](.github/dependabot.yml) revisa semanalmente acciones, paquetes npm del proyecto y API, y Dockerfiles.
+- En B2 se sustituyeron HTMLHint por **HTML-Validate** y Gitleaks por **TruffleHog**.
+
+### Imágenes y ambientes
+
+Las imágenes se publican en GHCR como `ghcr.io/conniedr8/demo-cicd-{web,api,db}` con la etiqueta `sha-<commit>`. Buildx genera variantes `linux/amd64` y `linux/arm64` y reutiliza caché de GitHub Actions.
+
+**DEV:** se crea un clúster temporal con `kind`, en el namespace `demo-dev`; valida el rollout, smoke tests y pruebas de integración. No conserva el estado entre ejecuciones independientes.
+
+**STAGING:** funciona en Rancher Desktop con el namespace `demo-staging`, un runner Windows `self-hosted`, aprobación mediante GitHub Environments y volumen persistente de PostgreSQL. Su interfaz está disponible localmente en `http://localhost:30080` cuando el clúster está encendido.
+
+### Reportes automáticos
+
+Cada uno de los ocho jobs contiene un paso **Resumen B5** con `if: always()` que escribe en `GITHUB_STEP_SUMMARY`: etapa, estado, commit, número de ejecución y servicio cuando corresponde a una matriz. Estos reportes se consultan en el resumen de los jobs dentro de [GitHub Actions](https://github.com/ConnieDR8/demo-cicd/actions/workflows/ci-cd.yml). Los fallos se investigan mediante sus logs.
+
+## Ejecución y pruebas locales
+
+**Requisitos:** Git, Node.js 22, npm y Docker Compose.
+
+En **PowerShell**, desde la raíz del repositorio:
+
+```powershell
+Copy-Item .env.example .env
+# Editar .env y definir una contraseña segura antes de iniciar
+npm ci
+npm ci --prefix api
+npm run lint
+npm run test:unit
+npm run test:site
 docker compose up -d --build --wait
-open http://localhost:8080    # en Windows: start http://localhost:8080
+npm run test:integration
+Start-Process http://localhost:8080
 ```
 
-Con observabilidad:
+Para detener los servicios conservando los datos del volumen:
 
-```bash
-docker compose --profile observabilidad up -d --build --wait
-open http://localhost:9090    # Prometheus
-open http://localhost:3001    # Grafana, usuario admin, contraseña admin
+```powershell
+docker compose down
 ```
 
-## Las pruebas, una por una
+El perfil `observabilidad` ofrece Prometheus en `http://localhost:9090` y Grafana en `http://localhost:3001` al ejecutarse con `docker compose --profile observabilidad up -d --build --wait`.
 
-```bash
-npm ci && npm ci --prefix api   # una sola vez
+## Evidencias del laboratorio
 
-npm run lint                    # ESLint sobre el JavaScript, HTMLHint sobre el HTML
-npm run test:unit               # 9 pruebas, sin base de datos, en menos de un segundo
-npm run test:site               # 6 pruebas sobre web/public
-npm run test:integration        # 6 pruebas contra http://localhost:8080 (la app tiene que estar levantada)
-APP_URL=http://localhost:30080 npm run test:integration   # las mismas, contra otro ambiente
-bash scripts/smoke.sh http://localhost:8080
-```
+- [Historial de CI/CD](https://github.com/ConnieDR8/demo-cicd/actions/workflows/ci-cd.yml)
+- [Pull Requests y correcciones](https://github.com/ConnieDR8/demo-cicd/pulls?q=is%3Apr)
+- [Documentación detallada de los fallos B3](docs/b3-evidencias.md)
 
-Los `Dockerfile` se revisan con [Hadolint](https://github.com/hadolint/hadolint):
+La sección siguiente se conserva desde el README existente para mantener las **cuatro pruebas intencionales de B3**, con enlaces a ejecuciones rojas y verdes y sus minutos de detección.
 
-```bash
-docker run --rm -i hadolint/hadolint < api/Dockerfile
-```
+## B3 - Cuatro fallos intencionales
 
-## La API
+Se introdujeron y corrigieron errores en cuatro etapas distintas del pipeline.
 
-| Método y ruta | Qué hace | Respuesta |
-|---|---|---|
-| `GET /api/health` | Dice si el servicio está sano | `200` con `{"status":"ok"}`, o `503` si no puede hablar con la base de datos |
-| `GET /api/mensajes` | Lista los mensajes, el más reciente primero | `200` con un arreglo JSON |
-| `POST /api/mensajes` | Crea un mensaje. Recibe `{"nombre":"...","mensaje":"..."}` | `201` con el mensaje creado, o `400` si falta un campo o el mensaje pasa de 280 caracteres |
-| `GET /metrics` | Métricas en formato Prometheus | Solo dentro de la red. nginx devuelve `404` si alguien la pide desde afuera |
+| Etapa | Qué se rompió | Run rojo | Run verde | Minuto de detección |
+|---|---|---|---|---|
+| Lint | Se eliminó `type="text"` de un input HTML | [#42](https://github.com/ConnieDR8/demo-cicd/actions/runs/41151300841) | [#43](https://github.com/ConnieDR8/demo-cicd/actions/runs/41151719558) | **Minuto 1 (14 s)** |
+| Pruebas unitarias | Se cambió el alias SQL `total` por `cantidad` | [#45](https://github.com/ConnieDR8/demo-cicd/actions/runs/41152685867) | [#46](https://github.com/ConnieDR8/demo-cicd/actions/runs/41152816321) | **Minuto 1 (26 s)** |
+| Integración | Se modificó el proxy de `api:3000` a `api:3001` | [#48](https://github.com/ConnieDR8/demo-cicd/actions/runs/41153692733) | [#49](https://github.com/ConnieDR8/demo-cicd/actions/runs/41153867655) | **Minuto 2 (67 s)** |
+| SAST | Se cambió una acción fijada por SHA a `actions/checkout@v4` | [#51](https://github.com/ConnieDR8/demo-cicd/actions/runs/41155176229) | [#52](https://github.com/ConnieDR8/demo-cicd/actions/runs/41155262524) | **Minuto 1 (19 s)** |
 
-Toda la configuración entra por variables de entorno: `PORT`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`. En el código no hay ninguna contraseña, y así debe seguir.
+Los tiempos se calcularon a partir de los logs de GitHub Actions, desde el inicio
+del primer job hasta la detección del fallo, excluyendo la espera en cola.
 
-## Kubernetes
+### Conclusión
 
-Los manifiestos usan imágenes `demo-cicd-web:local`, `demo-cicd-api:local` y `demo-cicd-db:local`. El script `scripts/desplegar.sh` las cambia por las de su registro antes de aplicar:
+Tres errores se detectaron durante el primer minuto de ejecución.
+El error de integración se detectó durante el segundo minuto porque fue
+necesario levantar los contenedores antes de ejecutar las pruebas.
 
-```bash
-kubectl create namespace demo-staging
-kubectl -n demo-staging create secret generic db-credenciales --from-literal=DB_PASSWORD="$(openssl rand -hex 16)"
-scripts/desplegar.sh k8s/overlays/staging ghcr.io/<usuario>/demo-cicd sha-<commit>
-kubectl -n demo-staging rollout status deploy/web deploy/api deploy/db
-open http://localhost:30080
-```
+Esto demuestra la importancia de detectar defectos antes de las etapas
+más costosas de construcción, escaneo y despliegue.
 
-El Secret `db-credenciales` se crea **en el clúster**, una sola vez. No está en el repositorio ni lo crea el pipeline de staging. Los pods llevan `imagePullSecrets: ghcr`: si sus paquetes son públicos, ese Secret no hace falta y Kubernetes lo ignora; si son privados, créenlo con un token que tenga `read:packages`.
-
-## Lo que no está aquí, a propósito
-
-- `.github/workflows/`: el pipeline. Es el trabajo de la guía y del laboratorio
-- `.github/dependabot.yml`
-- Los ambientes de GitHub (`dev`, `staging`) y la protección de `main`
-- La configuración de los runners, de GitLab CI, de Argo CD y de todo lo que piden los retos
-
-## Dudas
-
-En el [issue de entrega del LAB-04](https://github.com/urp-topicos-2026-2/.github-private/issues). Cuando pregunten, pasen el enlace al run que falló, digan en qué job y en qué paso, qué esperaban y qué pasó.
-
-Ing. Ronald Requena Crispín
+[Ver documentación detallada de B3](docs/b3-evidencias.md).
