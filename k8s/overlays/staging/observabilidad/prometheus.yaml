@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-r3-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-r3
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: prometheus-r3
+  template:
+    metadata:
+      labels:
+        app: prometheus-r3
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.1.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=72h
+          ports:
+            - containerPort: 9090
+          readinessProbe:
+            httpGet: {path: /-/ready, port: 9090}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /-/healthy, port: 9090}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 30m, memory: 128Mi}
+            limits: {memory: 384Mi}
+          volumeMounts:
+            - name: configuracion
+              mountPath: /etc/prometheus
+              readOnly: true
+            - name: datos
+              mountPath: /prometheus
+      volumes:
+        - name: configuracion
+          configMap:
+            name: prometheus-r3-config
+        - name: datos
+          persistentVolumeClaim:
+            claimName: prometheus-r3-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-r3
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus-r3
+  ports:
+    - port: 9090
+      targetPort: 9090
