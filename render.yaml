@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: demo-cicd-r5
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./r5-cloud/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: demo-cicd-r5-db
+          property: connectionString
+
+databases:
+  - name: demo-cicd-r5-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    databaseName: libro
+    user: app
+    ipAllowList: []
