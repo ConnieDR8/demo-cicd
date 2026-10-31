@@ -121,6 +121,7 @@ jobs:
       - name: Levantar la aplicación
         run: |
           echo "DB_PASSWORD=$(openssl rand -hex 12)" > .env
+          echo "GRAFANA_PASSWORD=$(openssl rand -hex 24)" >> .env
           docker compose up -d --build --wait
       - run: npm run test:integration
       - name: Logs de los contenedores (solo si algo falló)

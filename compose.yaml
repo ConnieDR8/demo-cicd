@@ -61,8 +61,8 @@ services:
     image: grafana/grafana:11.4.0
     profiles: [observabilidad]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Define GRAFANA_PASSWORD en .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - ./observabilidad/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
