@@ -185,3 +185,35 @@ controles de seguridad previos a la publicación y el despliegue.
 
 **Conclusión:** la optimización redujo el tiempo de CI en un
 27,9 %, superando la meta mínima del 25 %.
+## R1 - DAST con OWASP ZAP
+
+Se integra un análisis dinámico de seguridad mediante OWASP ZAP
+Baseline en el ambiente DEV, después de los smoke tests.
+
+El escaneo examina las respuestas HTTP de la aplicación desplegada.
+Utiliza rastreo y análisis pasivo, sin ataques activos.
+
+### Funcionamiento
+
+1. DEV despliega la aplicación en Kubernetes.
+2. Se verifican los servicios y ejecutan los smoke tests.
+3. OWASP ZAP analiza la aplicación mediante HTTP.
+4. Se generan reportes HTML y JSON.
+5. GitHub Actions conserva los reportes como artifacts.
+6. Los hallazgos HIGH o superiores bloquean el job DEV y,
+   por dependencia, impiden continuar hacia STAGING.
+
+Los hallazgos informativos y de menor severidad quedan registrados
+para su revisión, pero no bloquean automáticamente el despliegue.
+
+**Herramienta:** `zaproxy/zap-stable:2.17.0`.
+
+**Ubicación:** `.github/workflows/ci-cd.yml`, job `deploy-dev`.
+
+### Evidencia
+
+El reporte se publicará en la sección Artifacts de GitHub Actions
+cuando el workflow se ejecute desde `main`.
+
+La primera ejecución permitirá identificar los hallazgos reales
+y registrar las medidas correctivas correspondientes.

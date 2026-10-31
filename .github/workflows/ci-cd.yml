@@ -300,6 +300,89 @@ jobs:
           bash scripts/smoke.sh http://localhost:8080
           APP_URL=http://localhost:8080 npm run test:integration
 
+      - name: R1 DAST - OWASP ZAP Baseline
+        run: |
+          set -euo pipefail
+
+          mkdir -p zap-reports
+          chmod 777 zap-reports
+
+          kubectl -n demo-dev port-forward svc/web 18080:80 > "$RUNNER_TEMP/zap-port-forward.log" 2>&1 &
+          PORT_FORWARD_PID=$!
+          trap 'kill "$PORT_FORWARD_PID" 2>/dev/null || true' EXIT
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/api/health > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/zap-port-forward.log"
+            exit 1
+          fi
+
+          docker run --rm --network host \
+            -v "$PWD/zap-reports:/zap/wrk/:rw" \
+            zaproxy/zap-stable:2.17.0 \
+            zap-baseline.py \
+            -t http://127.0.0.1:18080 \
+            -m 1 -I \
+            -r zap-report.html \
+            -J zap-report.json
+
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          report = Path("zap-reports/zap-report.json")
+          if not report.is_file():
+              sys.exit("ZAP no genero su reporte JSON")
+
+          data = json.loads(report.read_text(encoding="utf-8"))
+          sites = data.get("site", [])
+          alerts = [
+              alert
+              for site in sites
+              for alert in site.get("alerts", [])
+          ]
+
+          high = [
+              alert
+              for alert in alerts
+              if int(alert.get("riskcode", 0)) >= 3
+          ]
+
+          print(f"Alertas ZAP: {len(alerts)}")
+          print(f"Alertas HIGH o superiores: {len(high)}")
+
+          for alert in high:
+              print(f"HIGH: {alert.get('name', 'Hallazgo sin nombre')}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("### R1 - DAST OWASP ZAP\n")
+              summary.write(f"- Alertas totales: {len(alerts)}\n")
+              summary.write(f"- Alertas HIGH o superiores: {len(high)}\n")
+              summary.write("- Reportes HTML y JSON disponibles en Artifacts\n")
+
+          if high:
+              sys.exit("DAST detecto hallazgos de severidad alta")
+          PY
+
+      - name: R1 - Publicar reportes DAST
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zap-dast-${{ github.run_id }}
+          path: zap-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Diagnóstico ante fallos
         if: failure()
         run: |
