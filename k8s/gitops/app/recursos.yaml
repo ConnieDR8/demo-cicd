@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: r4-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: r4-web
+  template:
+    metadata:
+      labels:
+        app: r4-web
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.29-alpine
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 96Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 5
+          volumeMounts:
+            - name: contenido
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+              readOnly: true
+      volumes:
+        - name: contenido
+          configMap:
+            name: r4-web-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: r4-web
+spec:
+  type: ClusterIP
+  selector:
+    app: r4-web
+  ports:
+    - port: 80
+      targetPort: 8080
