@@ -50,6 +50,7 @@ test_integration:
   script:
     - npm ci
     - echo "DB_PASSWORD=$(openssl rand -hex 12)" > .env
+    - echo "GRAFANA_PASSWORD=$(openssl rand -hex 24)" >> .env
     - docker compose up -d --build --wait
     - npm run test:integration
   after_script:
