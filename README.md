@@ -166,9 +166,22 @@ ni despliega código hasta que todos los controles obligatorios aprueben.
 
 ### Medición posterior
 
-**Pendiente:** incorporar aquí el enlace al run de la PR B6 y su tiempo real
-al finalizar `security`. La reducción se calculará como:
+| Métrica | Resultado |
+| --- | ---: |
+| [Run #56 optimizado](https://github.com/ConnieDR8/demo-cicd/actions/runs/41158313429) | 83,5 segundos |
+| Promedio inicial | 115,9 segundos |
+| Reducción absoluta | 32,4 segundos |
+| **Reducción porcentual** | **27,9 %** |
+| Reducción requerida | 25 % |
+| **Objetivo** | **Cumplido** |
 
-`Mejora (%) = (115,9 - tiempo_nuevo_en_segundos) / 115,9 * 100`
+La medición utiliza el mismo intervalo que la línea base:
+desde el inicio del primer job hasta terminar el último escaneo
+de Security, excluyendo esperas en cola y despliegues.
 
-No se declara el objetivo cumplido hasta medir un run exitoso y comparar.
+Las cuatro verificaciones iniciales se ejecutaron en paralelo.
+Todos los checks obligatorios aprobaron y se conservaron los
+controles de seguridad previos a la publicación y el despliegue.
+
+**Conclusión:** la optimización redujo el tiempo de CI en un
+27,9 %, superando la meta mínima del 25 %.
