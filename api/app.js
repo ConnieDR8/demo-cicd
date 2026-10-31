@@ -6,7 +6,7 @@
 import express from "express";
 import client from "prom-client";
 
-export function crearApp({ pool, registro = new client.Registry() }) {
+export function crearApp({ pool, registro = new client.Registry(), exponerMetricas = true }) {
   const app = express();
   app.use(express.json({ limit: "10kb" }));
 
@@ -74,10 +74,12 @@ export function crearApp({ pool, registro = new client.Registry() }) {
     } catch (e) { next(e); }
   });
 
-  app.get("/metrics", async (_req, res) => {
-    res.set("Content-Type", registro.contentType);
-    res.end(await registro.metrics());
-  });
+  if (exponerMetricas) {
+    app.get("/metrics", async (_req, res) => {
+      res.set("Content-Type", registro.contentType);
+      res.end(await registro.metrics());
+    });
+  }
 
   // JSON mal formado en el cuerpo: es culpa del cliente, no un 500.
   app.use((err, _req, res, _next) => {
