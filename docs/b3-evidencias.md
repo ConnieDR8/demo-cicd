@@ -25,3 +25,11 @@
 - Correccion: se restauro proxy_pass http://api:3000.
 - Ejecucion fallida: https://github.com/ConnieDR8/demo-cicd/actions/runs/41153692733/job/124395884953?pr=22
 - Ejecucion corregida: consultar el ultimo run exitoso de esta PR.
+## Experimento 4: SAST
+
+- Fallo intencional: referencia mutable actions/checkout@v4.
+- Detector: Semgrep.
+- Etapa: SAST.
+- Correccion: restauracion del SHA completo.
+- Ejecucion fallida: https://github.com/ConnieDR8/demo-cicd/actions/runs/41155176229/job/124400274887?pr=23
+- Ejecucion corregida: ultimo run exitoso de la PR B3.4.
