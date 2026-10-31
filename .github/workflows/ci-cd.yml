@@ -36,6 +36,19 @@ jobs:
           config: .hadolint.yaml
           failure-threshold: warning
 
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Lint: ESLint, HTML-Validate y Hadolint"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   sast:
     name: 2. SAST (Semgrep) y secretos (TruffleHog)
     runs-on: ubuntu-latest
@@ -55,6 +68,19 @@ jobs:
           version: "3.99.0"
           extra_args: --results=verified,unknown
 
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### SAST: Semgrep y TruffleHog"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   test-unit:
     name: 3. Pruebas unitarias y del sitio
     needs: lint
@@ -69,6 +95,19 @@ jobs:
       - run: npm ci && npm ci --prefix api
       - run: npm run test:unit
       - run: npm run test:site
+
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Pruebas unitarias y del sitio"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   test-integration:
     name: 4. Pruebas de integración (Compose)
@@ -92,6 +131,19 @@ jobs:
       - name: Apagar
         if: always()
         run: docker compose down -v
+
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Pruebas de integración: Docker Compose"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   package:
     name: 5. Empaquetar y publicar (${{ matrix.servicio }})
@@ -134,6 +186,20 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.servicio }}
           cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
 
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Empaquetado y publicación en GHCR"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+            echo "| Servicio | ${{ matrix.servicio }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   security:
     name: 6. Escaneo de imagen (${{ matrix.servicio }})
     needs: package
@@ -171,6 +237,20 @@ jobs:
           exit-code: "1"
           format: table
           trivyignores: .trivyignore
+
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Escaneo de imágenes: Trivy"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+            echo "| Servicio | ${{ matrix.servicio }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-dev:
     name: 7. Deploy DEV (efímero) y smoke
@@ -230,6 +310,19 @@ jobs:
           kubectl -n demo-dev logs -l app=api --tail=50 || true
           kubectl -n demo-dev logs -l app=db --tail=50 || true
 
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Despliegue DEV y smoke tests"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy-staging:
     name: 8. Deploy STAGING (aprobación manual)
     needs: deploy-dev
@@ -269,3 +362,16 @@ jobs:
           kubectl -n demo-staging get pods,svc,pvc
           kubectl -n demo-staging describe pods
           kubectl -n demo-staging logs -l app=api --tail=50 || true
+
+      - name: Resumen B5
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Despliegue STAGING con aprobación"
+            echo "| Campo | Valor |"
+            echo "| --- | --- |"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Ejecución | ${{ github.run_id }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
