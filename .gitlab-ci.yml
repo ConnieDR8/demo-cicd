@@ -11,6 +11,9 @@ stages:
 include:
   - template: Jobs/SAST.gitlab-ci.yml
 
+.sast-analyzer:
+  allow_failure: false
+
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
