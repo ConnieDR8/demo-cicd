@@ -83,7 +83,6 @@ jobs:
 
   test-unit:
     name: 3. Pruebas unitarias y del sitio
-    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,7 +110,6 @@ jobs:
 
   test-integration:
     name: 4. Pruebas de integración (Compose)
-    needs: test-unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -147,7 +145,7 @@ jobs:
 
   package:
     name: 5. Empaquetar y publicar (${{ matrix.servicio }})
-    needs: [test-integration, sast]
+    needs: [lint, sast, test-unit, test-integration]
     runs-on: ubuntu-latest
     permissions:
       contents: read
