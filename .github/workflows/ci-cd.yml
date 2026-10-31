@@ -424,6 +424,9 @@ jobs:
         run: |
           echo "PREFIJO=ghcr.io/$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')/demo-cicd" >> "$GITHUB_ENV"
 
+      - name: R3 - Validar Secret de Grafana
+        run: kubectl -n demo-staging get secret grafana-admin
+
       - name: Desplegar las imágenes aprobadas en DEV
         run: |
           bash scripts/desplegar.sh k8s/overlays/staging "$PREFIJO" "sha-${{ github.sha }}"
@@ -436,6 +439,13 @@ jobs:
 
       - name: Verificar STAGING
         run: bash scripts/smoke.sh http://localhost:30080
+
+      - name: R3 - Comprobar observabilidad
+        run: |
+          kubectl -n demo-staging get secret grafana-admin > /dev/null
+          kubectl -n demo-staging rollout status deploy/prometheus-r3 --timeout=180s
+          kubectl -n demo-staging rollout status deploy/grafana-r3 --timeout=180s
+          kubectl -n demo-staging get svc/prometheus-r3 svc/grafana-r3
 
       - name: Diagnóstico en caso de fallo
         if: failure()

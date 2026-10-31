@@ -6,6 +6,8 @@ kind: Kustomization
 namespace: demo-staging
 resources:
   - ../../base
+  - observabilidad/prometheus.yaml
+  - observabilidad/grafana.yaml
 labels:
   - pairs:
       ambiente: staging
@@ -13,3 +15,17 @@ labels:
 patches:
   - path: web-nodeport.yaml
   - path: api-replicas.yaml
+
+configMapGenerator:
+  - name: prometheus-r3-config
+    files:
+      - prometheus.yml=observabilidad/prometheus.yml
+  - name: grafana-r3-datasource
+    files:
+      - datasource.yaml=observabilidad/grafana-datasource.yaml
+  - name: grafana-r3-provider
+    files:
+      - provider.yaml=observabilidad/grafana-provider.yaml
+  - name: grafana-r3-dashboard
+    files:
+      - dashboard.json=observabilidad/dashboard.json

@@ -260,3 +260,50 @@ y la deteccion independiente de secretos con TruffleHog.
 
 La evidencia se completara cuando los jobs se ejecuten
 satisfactoriamente en GitLab.com.
+
+## R3 - Observabilidad en STAGING
+
+Se incorporan Prometheus y Grafana al ambiente persistente
+de Kubernetes administrado mediante Rancher Desktop.
+
+### Arquitectura
+
+- Prometheus recopila metricas desde `api:3000/metrics`.
+- La recopilacion se realiza cada 10 segundos.
+- Grafana utiliza Prometheus como fuente de datos.
+- Kustomize administra los manifiestos y ConfigMaps.
+- Ambos servicios se mantienen internos al cluster.
+- La contrasena administrativa se almacena en un Secret.
+
+### Dashboard
+
+El dashboard `LAB04 - API RED / STAGING` incluye:
+
+1. Solicitudes HTTP por segundo.
+2. Errores HTTP 5xx por segundo.
+3. Latencia p95 de las solicitudes.
+4. Disponibilidad de la API.
+
+Los archivos de aprovisionamiento y el dashboard estan
+versionados en `k8s/overlays/staging/observabilidad/`.
+
+### Validacion
+
+El job de STAGING comprueba el despliegue de Prometheus
+y Grafana despues de la aprobacion manual.
+
+Para consultar localmente los paneles:
+
+- Prometheus: `kubectl -n demo-staging port-forward svc/prometheus-r3 9090:9090`
+- Grafana: `kubectl -n demo-staging port-forward svc/grafana-r3 3001:3000`
+
+El dashboard se encuentra en Grafana, carpeta LAB04.
+
+### Evidencias pendientes
+
+- Run exitoso de GitHub Actions: pendiente.
+- Captura del dashboard Grafana: pendiente.
+- Consulta Prometheus con `up{job="api"} = 1`: pendiente.
+
+R3 estara validado cuando se compruebe que Prometheus
+recopila las metricas reales del STAGING y Grafana las muestra.
