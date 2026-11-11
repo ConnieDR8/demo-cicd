@@ -23,6 +23,6 @@
     "html-validate": "10.17.0",
     "jsdom": "^25.0.1",
     "supertest": "^7.0.0",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.5"
   }
 }
